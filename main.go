@@ -83,7 +83,9 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 	if rgx.MatchString(m.Content) {
 		go func() {
-			model, err := tiktok.GetDownloadModel(rgx.FindString(m.Content))
+			link := rgx.FindString(m.Content)
+			log.Println("Started processing ", link, "Requested by: ", m.Author.Username)
+			model, err := tiktok.GetDownloadModel(link)
 			if err != nil {
 				log.Println(err.Error())
 				return
@@ -91,16 +93,15 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			file, err := model.GetConverted()
 			if err != nil {
 				log.Println(err.Error())
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry, cannot process a video with the following link: %s", rgx.FindString(m.Content)))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry, cannot process a video with the following link: %s", link))
 				return
 			}
 			_, err = s.ChannelFileSendWithMessage(m.ChannelID, fmt.Sprintf("From: %s \nwith the following message: %s", m.Author.Mention(), rgx.ReplaceAllString(m.Content, "")), model.GetFilename(), file)
 			if err != nil {
 				s.ChannelMessageSend(m.ChannelID, m.Author.Mention()+" I can't process this video, it's cursed.")
+				return
 			}
-			if err == nil {
-				s.ChannelMessageDelete(m.ChannelID, m.Message.ID)
-			}
+			s.ChannelMessageDelete(m.ChannelID, m.Message.ID)
 			file.Close()
 			os.Remove(file.Name())
 		}()
