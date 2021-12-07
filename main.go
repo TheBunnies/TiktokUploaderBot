@@ -91,14 +91,19 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				return
 			}
 			file, err := model.GetConverted()
+
 			if err != nil {
 				log.Println(err.Error())
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry, cannot process a video with the following link: %s", link))
+				file.Close()
+				os.Remove(file.Name())
 				return
 			}
 			_, err = s.ChannelFileSendWithMessage(m.ChannelID, fmt.Sprintf("From: %s \nwith the following message: %s", m.Author.Mention(), rgx.ReplaceAllString(m.Content, "")), model.GetFilename(), file)
 			if err != nil {
 				s.ChannelMessageSend(m.ChannelID, m.Author.Mention()+" I can't process this video, it's cursed.")
+				file.Close()
+				os.Remove(file.Name())
 				return
 			}
 			s.ChannelMessageDelete(m.ChannelID, m.Message.ID)
