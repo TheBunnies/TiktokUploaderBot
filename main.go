@@ -85,6 +85,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		go func() {
 			link := rgx.FindString(m.Content)
 			log.Println("Started processing ", link, "Requested by: ", m.Author.Username)
+			s.ChannelTyping(m.ChannelID)
 			model, err := tiktok.GetDownloadModel(link)
 			if err != nil {
 				log.Println(err.Error())
