@@ -89,6 +89,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			model, err := tiktok.GetDownloadModel(link)
 			if err != nil {
 				log.Println(err.Error())
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry, cannot process a video with the following link: %s", link))
 				return
 			}
 			file, err := model.GetConverted()
@@ -100,7 +101,13 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				os.Remove(file.Name())
 				return
 			}
-			_, err = s.ChannelFileSendWithMessage(m.ChannelID, fmt.Sprintf("From: %s \nwith the following message: %s", m.Author.Mention(), rgx.ReplaceAllString(m.Content, "")), model.GetFilename(), file)
+			var message string
+			if rgx.ReplaceAllString(m.Content, "") == "" {
+				message = fmt.Sprintf("From: %s \nOriginal link: `%s`", m.Author.Mention(), link)
+			} else {
+				message = fmt.Sprintf("From: %s \nOriginal link: `%s` \nwith the following message: %s", m.Author.Mention(), link, rgx.ReplaceAllString(m.Content, ""))
+			}
+			_, err = s.ChannelFileSendWithMessage(m.ChannelID, message, model.GetFilename(), file)
 			if err != nil {
 				s.ChannelMessageSend(m.ChannelID, m.Author.Mention()+" I can't process this video, it's cursed.")
 				file.Close()
