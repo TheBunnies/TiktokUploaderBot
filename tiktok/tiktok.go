@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	ffmpeg_go "github.com/u2takey/ffmpeg-go"
@@ -33,6 +34,11 @@ func (model *DownloadModel) DownloadVideo() (string, error) {
 	resp, err := http.Get(model.DownloadUrl)
 	if err != nil {
 		return "", errors.New("cannot download the video")
+	}
+	size, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
+	downloadSize := int64(size)
+	if downloadSize/1000000 >= 6 {
+		return "", errors.New("download file is too large")
 	}
 	defer resp.Body.Close()
 	filename := model.GetFilename()

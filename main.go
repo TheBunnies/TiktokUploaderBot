@@ -72,7 +72,7 @@ func setupBot(token string) {
 
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
 
 	dg.Close()
@@ -82,41 +82,37 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 	if rgx.MatchString(m.Content) {
-		go func() {
-			link := rgx.FindString(m.Content)
-			log.Println("Started processing ", link, "Requested by: ", m.Author.Username)
-			s.ChannelTyping(m.ChannelID)
-			model, err := tiktok.GetDownloadModel(link)
-			if err != nil {
-				log.Println(err.Error())
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry, cannot process a video with the following link: %s", link))
-				return
-			}
-			file, err := model.GetConverted()
+		link := rgx.FindString(m.Content)
+		log.Println("Started processing ", link, "Requested by:", m.Author.Username, ":", m.Author.ID)
+		s.ChannelTyping(m.ChannelID)
+		model, err := tiktok.GetDownloadModel(link)
+		if err != nil {
+			log.Println(err.Error())
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, cannot process the video `%s`", m.Author.Mention(), err))
+			return
+		}
+		file, err := model.GetConverted()
 
-			if err != nil {
-				log.Println(err.Error())
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry, cannot process a video with the following link: %s", link))
-				file.Close()
-				os.Remove(file.Name())
-				return
-			}
-			var message string
-			if rgx.ReplaceAllString(m.Content, "") == "" {
-				message = fmt.Sprintf("From: %s \nOriginal link: `%s`", m.Author.Mention(), link)
-			} else {
-				message = fmt.Sprintf("From: %s \nOriginal link: `%s` \nwith the following message: %s", m.Author.Mention(), link, rgx.ReplaceAllString(m.Content, ""))
-			}
-			_, err = s.ChannelFileSendWithMessage(m.ChannelID, message, model.GetFilename(), file)
-			if err != nil {
-				s.ChannelMessageSend(m.ChannelID, m.Author.Mention()+" I can't process this video, it's cursed.")
-				file.Close()
-				os.Remove(file.Name())
-				return
-			}
-			s.ChannelMessageDelete(m.ChannelID, m.Message.ID)
+		if err != nil {
+			log.Println(err.Error())
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, cannot process the video `%s`", m.Author.Mention(), err))
+			return
+		}
+		var message string
+		if rgx.ReplaceAllString(m.Content, "") == "" {
+			message = fmt.Sprintf("From: %s \nOriginal link: `%s`", m.Author.Mention(), link)
+		} else {
+			message = fmt.Sprintf("From: %s \nOriginal link: `%s` \nwith the following message: %s", m.Author.Mention(), link, rgx.ReplaceAllString(m.Content, ""))
+		}
+		_, err = s.ChannelFileSendWithMessage(m.ChannelID, message, model.GetFilename(), file)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, m.Author.Mention()+" I can't process this video, it's cursed.")
 			file.Close()
 			os.Remove(file.Name())
-		}()
+			return
+		}
+		s.ChannelMessageDelete(m.ChannelID, m.Message.ID)
+		file.Close()
+		os.Remove(file.Name())
 	}
 }
