@@ -4,87 +4,129 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"log"
 	"net/http"
+	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
-
-	ffmpeg_go "github.com/u2takey/ffmpeg-go"
+	"time"
 )
 
-type DownloadModel struct {
-	Status      string `json:"status"`
-	DownloadUrl string `json:"download_url"`
-	Message     string `json:"message"`
+const Origin = "http://api2.musical.ly"
+
+type AwemeDetail struct {
+	Author struct {
+		Unique_ID string
+	}
+	Aweme_ID    string
+	Create_Time int64
+	Video       struct {
+		Duration  int64
+		Play_Addr struct {
+			Width    int
+			Height   int
+			URL_List []string
+		}
+	}
 }
 
-func GetDownloadModel(url string) (DownloadModel, error) {
-	resp, err := http.Get(fmt.Sprintf("https://www.tiktokdownloader.org/check.php?v=%s", url))
+func Parse(id string) (uint64, error) {
+	return strconv.ParseUint(id, 10, 64)
+}
+
+func NewAwemeDetail(id uint64) (*AwemeDetail, error) {
+	req, err := http.NewRequest("GET", Origin+"/aweme/v1/aweme/detail/", nil)
 	if err != nil {
-		return DownloadModel{}, errors.New("cannot get the download link")
+		return nil, err
+	}
+	req.URL.RawQuery = "aweme_id=" + strconv.FormatUint(id, 10)
+	res, err := new(http.Transport).RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New(res.Status)
+	}
+	var detail struct {
+		Aweme_Detail AwemeDetail
+	}
+	if err := json.NewDecoder(res.Body).Decode(&detail); err != nil {
+		return nil, err
+	}
+	return &detail.Aweme_Detail, nil
+}
+
+func (a AwemeDetail) Duration() time.Duration {
+	return time.Duration(a.Video.Duration) * time.Millisecond
+}
+
+func (a AwemeDetail) Time() string {
+	return strings.Replace(time.Unix(a.Create_Time, 0).Format("Jan _2 15:04:05"), "  ", " ", -1)
+}
+
+func (a AwemeDetail) URL() (string, error) {
+	if len(a.Video.Play_Addr.URL_List) == 0 {
+		return "", errors.New("invalid slice")
+	}
+	first := a.Video.Play_Addr.URL_List[0]
+	loc, err := url.Parse(first)
+	if err != nil {
+		return "", err
+	}
+	loc.RawQuery = ""
+	loc.Scheme = "http"
+	return loc.String(), nil
+}
+
+func GetId(uri string) (string, error) {
+	url, _ := url.Parse(uri)
+	url.RawQuery = ""
+	url.Scheme = "http"
+	resp, err := http.Get(url.String())
+	if err != nil {
+		return "", err
 	}
 	defer resp.Body.Close()
-	model := DownloadModel{}
-	json.NewDecoder(resp.Body).Decode(&model)
-	return model, nil
-}
-func (model *DownloadModel) DownloadVideo() (string, error) {
-	resp, err := http.Get(model.DownloadUrl)
-	if err != nil {
-		return "", errors.New("cannot download the video")
+	splited := strings.Split(resp.Request.URL.String(), "/")
+	if len(splited) > 5 {
+		return splited[5], nil
 	}
-	size, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
+	message := splited[4]
+	id := message[:strings.IndexByte(message, '.')]
+	return id, nil
+}
+
+func DownloadVideo(det *AwemeDetail) (*os.File, error) {
+	addr, err := det.URL()
+	if err != nil {
+		return nil, err
+	}
+	res, err := http.Get(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	size, _ := strconv.Atoi(res.Header.Get("Content-Length"))
 	downloadSize := int64(size)
-	if downloadSize/1000000 >= 6 {
-		return "", errors.New("download file is too large")
+	if downloadSize/1000000 >= 8 {
+		return nil, errors.New("download file is too large")
 	}
-	defer resp.Body.Close()
-	filename := model.GetFilename()
-	dir, _ := os.Getwd()
-	filepath := filepath.Join(dir, filename)
-	out, err := os.Create(filepath)
-	if err != nil {
-		return "", err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return "", err
-	}
-	return filename, nil
-}
-func (model *DownloadModel) GetFilename() string {
-	filename := strings.Split(model.DownloadUrl, "=")[1] + ".mp4"
-	return filename
-}
-func (model *DownloadModel) GetVideoAsReader() (io.Reader, error) {
-	resp, err := http.Get(model.DownloadUrl)
-	if err != nil {
-		return resp.Body, err
-	}
-	return resp.Body, nil
-}
-func (model *DownloadModel) GetConverted() (*os.File, error) {
-	filename, err := model.DownloadVideo()
+	filename := fmt.Sprintf("%s.%s", det.Aweme_ID, strings.Split(res.Header.Get("Content-Type"), "/")[1])
+	file, err := os.Create(filename)
 	if err != nil {
 		return nil, err
 	}
-	dir, _ := os.Getwd()
-	newFileName := filepath.Join(dir, "temp_"+filename)
-	err = ffmpeg_go.Input(filepath.Join(dir, filename)).
-		Output(newFileName, ffmpeg_go.KwArgs{"c:v": "libx264"}).
-		OverWriteOutput().Run()
-	if err != nil {
-		fmt.Printf("Filename: %s \n New filename: %s", filename, newFileName)
+	defer file.Close()
+	if _, err := file.ReadFrom(res.Body); err != nil {
 		return nil, err
 	}
-	file, err := os.Open(newFileName)
+	openedFile, err := os.Open(file.Name())
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		openedFile.Close()
+		os.Remove(openedFile.Name())
 	}
-	os.Remove(filename)
-	return file, nil
+	return openedFile, nil
 }

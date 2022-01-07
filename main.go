@@ -85,26 +85,38 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		link := rgx.FindString(m.Content)
 		log.Println("Started processing ", link, "Requested by:", m.Author.Username, ":", m.Author.ID)
 		s.ChannelTyping(m.ChannelID)
-		model, err := tiktok.GetDownloadModel(link)
+
+		id, err := tiktok.GetId(link)
 		if err != nil {
-			log.Println(err.Error())
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, cannot process the video `%s`", m.Author.Mention(), err))
+			log.Println(err)
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, cannot access the link to your video `%s`", m.Author.Mention(), err))
 			return
 		}
-		file, err := model.GetConverted()
-
+		parsedId, err := tiktok.Parse(id)
 		if err != nil {
-			log.Println(err.Error())
+			log.Println(err)
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, could not parse the actual id of the video `%s", m.Author.Mention(), err))
+			return
+		}
+		data, err := tiktok.NewAwemeDetail(parsedId)
+		if err != nil {
+			log.Println(err)
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, cannot get details about the video `%s`", m.Author.Mention(), err))
+			return
+		}
+		file, err := tiktok.DownloadVideo(data)
+		if err != nil {
+			log.Println(err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, cannot process the video `%s`", m.Author.Mention(), err))
 			return
 		}
 		var message string
 		if rgx.ReplaceAllString(m.Content, "") == "" {
-			message = fmt.Sprintf("From: %s \nOriginal link: `%s`", m.Author.Mention(), link)
+			message = fmt.Sprintf("From: %s \nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link)
 		} else {
-			message = fmt.Sprintf("From: %s \nOriginal link: `%s` \nwith the following message: %s", m.Author.Mention(), link, rgx.ReplaceAllString(m.Content, ""))
+			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: %s \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link, rgx.ReplaceAllString(m.Content, ""))
 		}
-		_, err = s.ChannelFileSendWithMessage(m.ChannelID, message, model.GetFilename(), file)
+		_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{File: &discordgo.File{Name: file.Name(), ContentType: "video/mp4", Reader: file}, Content: message, Reference: m.MessageReference})
 		if err != nil {
 			s.ChannelMessageSend(m.ChannelID, m.Author.Mention()+" I can't process this video, it's cursed.")
 			file.Close()

@@ -1,12 +1,11 @@
 # About 
-This bot opens full potential of HTML5 video embeds, it makes an HTTP request to https://www.tiktokdownloader.org/ and converts the data to x254 codec using FFmpeg so that discord could handle it properly.
+This bot opens full potential of HTML5 video embeds, it makes an HTTP request to the tiktok API and sends it directly to your discord chat!
 
 If it detects any shared Tiktok URL on your discord server, the sent message is going to be deleted and replaced with video embed as soon as possible.
 
 ## Running bot on your Windows PC
 1. Install GO runtime from the [official website](https://go.dev/).
-2. Download [FFmpeg](http://www.ffmpeg.org/) and drag an executable to the root folder of your project.
-3. Open **config.json** and pass down your discord bot token.
+2. Open **config.json** and pass down your discord bot token.
 3. Run `go run main.go` or build `go build .`
 
 ## Linux and Docker support
