@@ -14,7 +14,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-var rgx = regexp.MustCompile(`http(s|):\/\/.*(tiktok|xzcs3zlph).com.*\/`)
+var rgx = regexp.MustCompile(`http(s|):\/\/.*(tiktok).com[^\s]*`)
 
 type Token struct {
 	Body string `json:"token"`
