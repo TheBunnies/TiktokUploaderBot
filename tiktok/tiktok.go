@@ -88,6 +88,9 @@ func GetId(uri string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if resp.StatusCode == http.StatusNotFound {
+		return "", errors.New("video not found")
+	}
 	defer resp.Body.Close()
 	splited := strings.Split(resp.Request.URL.String(), "/")
 	if len(splited) > 5 {
