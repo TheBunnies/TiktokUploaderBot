@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"syscall"
 
 	"github.com/TheBunnies/TiktokUploaderBot/tiktok"
@@ -101,7 +102,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		data, err := tiktok.NewAwemeDetail(parsedId)
 		if err != nil {
 			log.Println(err)
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, cannot get details about the video `%s`", m.Author.Mention(), err))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s It looks like I can't get the details about your video, try to resend it one more time!", m.Author.Mention()))
 			return
 		}
 		file, err := tiktok.DownloadVideo(data)
@@ -114,7 +115,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if rgx.ReplaceAllString(m.Content, "") == "" {
 			message = fmt.Sprintf("From: %s \nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link)
 		} else {
-			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: %s \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link, rgx.ReplaceAllString(m.Content, ""))
+			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: %s \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link, strings.TrimSpace(rgx.ReplaceAllString(m.Content, "")))
 		}
 		_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{File: &discordgo.File{Name: file.Name(), ContentType: "video/mp4", Reader: file}, Content: message, Reference: m.MessageReference})
 		if err != nil {

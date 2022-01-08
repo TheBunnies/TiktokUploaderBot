@@ -127,6 +127,7 @@ func DownloadVideo(det *AwemeDetail) (*os.File, error) {
 		log.Println(err)
 		openedFile.Close()
 		os.Remove(openedFile.Name())
+		return nil, err
 	}
 	return openedFile, nil
 }
