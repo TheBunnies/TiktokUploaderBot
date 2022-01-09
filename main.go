@@ -96,7 +96,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		parsedId, err := tiktok.Parse(id)
 		if err != nil {
 			log.Println(err)
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, could not parse the actual id of the video `%s", m.Author.Mention(), err))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, could not parse the actual id of the video", m.Author.Mention()))
 			return
 		}
 		data, err := tiktok.NewAwemeDetail(parsedId)
@@ -105,7 +105,9 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s It looks like I can't get the details about your video, try to resend it one more time!", m.Author.Mention()))
 			return
 		}
-		file, err := tiktok.DownloadVideo(data)
+		guild, _ := s.Guild(m.GuildID)
+		limit := getDownloadSizeLimit(guild)
+		file, err := tiktok.DownloadVideo(data, limit)
 		if err != nil {
 			log.Println(err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, cannot process the video `%s`", m.Author.Mention(), err))
@@ -128,4 +130,14 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		file.Close()
 		os.Remove(file.Name())
 	}
+}
+func getDownloadSizeLimit(guild *discordgo.Guild) int64 {
+	tier := guild.PremiumTier
+	log.Println(tier)
+	if tier == discordgo.PremiumTier2 {
+		return 50000000
+	} else if tier == discordgo.PremiumTier3 {
+		return 100000000
+	}
+	return 8000000
 }

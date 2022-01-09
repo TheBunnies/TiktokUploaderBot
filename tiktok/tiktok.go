@@ -88,10 +88,10 @@ func GetId(uri string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
 		return "", errors.New("video not found")
 	}
-	defer resp.Body.Close()
 	splited := strings.Split(resp.Request.URL.String(), "/")
 	if len(splited) > 5 {
 		return splited[5], nil
@@ -101,7 +101,7 @@ func GetId(uri string) (string, error) {
 	return id, nil
 }
 
-func DownloadVideo(det *AwemeDetail) (*os.File, error) {
+func DownloadVideo(det *AwemeDetail, downloadBytesLimit int64) (*os.File, error) {
 	addr, err := det.URL()
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func DownloadVideo(det *AwemeDetail) (*os.File, error) {
 	defer res.Body.Close()
 	size, _ := strconv.Atoi(res.Header.Get("Content-Length"))
 	downloadSize := int64(size)
-	if downloadSize/1000000 >= 8 {
+	if downloadSize > downloadBytesLimit {
 		return nil, errors.New("download file is too large")
 	}
 	filename := fmt.Sprintf("%s.%s", det.Aweme_ID, strings.Split(res.Header.Get("Content-Type"), "/")[1])
