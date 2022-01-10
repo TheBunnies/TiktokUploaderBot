@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/signal"
 	"regexp"
@@ -83,7 +84,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 	if rgx.MatchString(m.Content) {
-		link := rgx.FindString(m.Content)
+		link := TrimURL(rgx.FindString(m.Content))
 		log.Println("Started processing ", link, "Requested by:", m.Author.Username, ":", m.Author.ID)
 		s.ChannelTyping(m.ChannelID)
 
@@ -115,9 +116,9 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 		var message string
 		if rgx.ReplaceAllString(m.Content, "") == "" {
-			message = fmt.Sprintf("From: %s \nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link)
+			message = fmt.Sprintf("From: %s \nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: <%s>", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link)
 		} else {
-			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: %s \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link, strings.TrimSpace(rgx.ReplaceAllString(m.Content, "")))
+			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: <%s> \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link, strings.TrimSpace(rgx.ReplaceAllString(m.Content, "")))
 		}
 		_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{File: &discordgo.File{Name: file.Name(), ContentType: "video/mp4", Reader: file}, Content: message, Reference: m.MessageReference})
 		if err != nil {
@@ -133,11 +134,20 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 func getDownloadSizeLimit(guild *discordgo.Guild) int64 {
 	tier := guild.PremiumTier
-	log.Println(tier)
 	if tier == discordgo.PremiumTier2 {
 		return 50000000
 	} else if tier == discordgo.PremiumTier3 {
 		return 100000000
 	}
 	return 8000000
+}
+
+func TrimURL(uri string) string {
+	loc, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+	loc.RawQuery = ""
+	loc.Scheme = "http"
+	return loc.String()
 }
