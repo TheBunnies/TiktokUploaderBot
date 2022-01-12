@@ -95,10 +95,12 @@ func GetId(uri string) (string, error) {
 	splited := strings.Split(resp.Request.URL.String(), "/")
 	if len(splited) > 5 {
 		return splited[5], nil
+	} else if len(splited) > 3 {
+		message := splited[4]
+		id := message[:strings.IndexByte(message, '.')]
+		return id, nil
 	}
-	message := splited[4]
-	id := message[:strings.IndexByte(message, '.')]
-	return id, nil
+	return "", errors.New("could not extract the id from provided url")
 }
 
 func DownloadVideo(det *AwemeDetail, downloadBytesLimit int64) (*os.File, error) {
