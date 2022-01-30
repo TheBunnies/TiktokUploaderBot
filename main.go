@@ -116,9 +116,9 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 		var message string
 		if rgx.ReplaceAllString(m.Content, "") == "" {
-			message = fmt.Sprintf("From: %s \nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: <%s>", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link)
+			message = fmt.Sprintf("From: %s \nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s`\nDescription: ||%s|| \nOriginal link: <%s>", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), data.Description(), link)
 		} else {
-			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s` \nOriginal link: <%s> \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), link, strings.TrimSpace(rgx.ReplaceAllString(m.Content, "")))
+			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s`\nDescription: ||%s|| \nOriginal link: <%s> \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), data.Description(), link, strings.TrimSpace(rgx.ReplaceAllString(m.Content, "")))
 		}
 		_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{File: &discordgo.File{Name: file.Name(), ContentType: "video/mp4", Reader: file}, Content: message, Reference: m.MessageReference})
 		if err != nil {

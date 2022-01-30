@@ -21,6 +21,7 @@ type AwemeDetail struct {
 	}
 	Aweme_ID    string
 	Create_Time int64
+	Desc        string
 	Video       struct {
 		Duration  int64
 		Play_Addr struct {
@@ -60,6 +61,9 @@ func NewAwemeDetail(id uint64) (*AwemeDetail, error) {
 
 func (a AwemeDetail) Duration() time.Duration {
 	return time.Duration(a.Video.Duration) * time.Millisecond
+}
+func (a AwemeDetail) Description() string {
+	return strings.TrimSpace(a.Desc)
 }
 
 func (a AwemeDetail) Time() string {
