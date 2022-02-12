@@ -98,7 +98,9 @@ func GetId(uri string) (string, error) {
 	}
 	splited := strings.Split(resp.Request.URL.String(), "/")
 	if len(splited) > 5 {
-		return splited[5], nil
+		message := splited[5]
+		id := message[:strings.IndexByte(message, '?')]
+		return id, nil
 	} else if len(splited) > 3 {
 		message := splited[4]
 		id := message[:strings.IndexByte(message, '.')]
