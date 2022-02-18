@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -67,7 +68,7 @@ func (a AwemeDetail) Description() string {
 }
 
 func (a AwemeDetail) Time() string {
-	return strings.Replace(time.Unix(a.Create_Time, 0).Format("Jan _2 15:04:05"), "  ", " ", -1)
+	return strings.Replace(time.Unix(a.Create_Time, 0).Format("Mon, 02 Jan 2006 15:04:05 MST"), "  ", " ", -1)
 }
 
 func (a AwemeDetail) URL() (string, error) {
@@ -96,17 +97,18 @@ func GetId(uri string) (string, error) {
 	if resp.StatusCode == http.StatusNotFound {
 		return "", errors.New("video not found")
 	}
-	splited := strings.Split(resp.Request.URL.String(), "/")
-	if len(splited) > 5 {
-		message := splited[5]
-		id := message[:strings.IndexByte(message, '?')]
-		return id, nil
-	} else if len(splited) > 3 {
-		message := splited[4]
-		id := message[:strings.IndexByte(message, '.')]
-		return id, nil
+	newUrl, _ := url.Parse(resp.Request.URL.String())
+	newUrl.RawQuery = ""
+	newUrl.Scheme = "http"
+	fmt.Println(newUrl.String())
+	return fileNameWithoutExtension(filepath.Base(newUrl.String())), nil
+}
+
+func fileNameWithoutExtension(fileName string) string {
+	if pos := strings.LastIndexByte(fileName, '.'); pos != -1 {
+		return fileName[:pos]
 	}
-	return "", errors.New("could not extract the id from provided url")
+	return fileName
 }
 
 func DownloadVideo(det *AwemeDetail, downloadBytesLimit int64) (*os.File, error) {
