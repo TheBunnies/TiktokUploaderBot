@@ -16,6 +16,7 @@ import (
 )
 
 var rgx = regexp.MustCompile(`http(s|):\/\/.*(tiktok).com[^\s]*`)
+var roleRgx = regexp.MustCompile(`<@&(\d+)>`)
 
 type Token struct {
 	Body string `json:"token"`
@@ -118,7 +119,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if rgx.ReplaceAllString(m.Content, "") == "" {
 			message = fmt.Sprintf("From: %s \nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s`\nDescription: ||%s|| \nOriginal link: <%s>", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), data.Description(), link)
 		} else {
-			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s`\nDescription: ||%s|| \nOriginal link: <%s> \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), data.Description(), link, strings.TrimSpace(rgx.ReplaceAllString(m.Content, "")))
+			content := removeRoleMentions(strings.TrimSpace(rgx.ReplaceAllString(m.Content, "")))
+			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s`\nDescription: ||%s|| \nOriginal link: <%s> \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), data.Description(), link, content)
 		}
 		_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{File: &discordgo.File{Name: file.Name(), ContentType: "video/mp4", Reader: file}, Content: message, Reference: m.MessageReference})
 		if err != nil {
@@ -150,4 +152,8 @@ func TrimURL(uri string) string {
 	loc.RawQuery = ""
 	loc.Scheme = "http"
 	return loc.String()
+}
+func removeRoleMentions(message string) string {
+	m := roleRgx.ReplaceAllString(message, "**<REDACTED MENTION>**")
+	return strings.Replace(m, "@everyone", "**<REDACTED MENTION>**", -1)
 }
