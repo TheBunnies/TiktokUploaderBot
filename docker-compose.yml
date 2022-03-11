@@ -1,0 +1,7 @@
+version: "3.9" # Docker compose version, NOT project version
+
+services:
+  tiktok-bot:
+    build: .
+    restart: unless-stopped
+    
