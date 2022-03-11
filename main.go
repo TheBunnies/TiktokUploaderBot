@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -18,42 +19,58 @@ import (
 var rgx = regexp.MustCompile(`http(s|):\/\/.*(tiktok).com[^\s]*`)
 var roleRgx = regexp.MustCompile(`<@&(\d+)>`)
 
-type Token struct {
-	Body string `json:"token"`
+type Config struct {
+	Token string `json:"token"`
+	Proxy struct {
+		User     string `json:"user"`
+		Password string `json:"password"`
+		Ip       string `json:"ip"`
+		Port     string `json:"port"`
+	}
 }
 
+var ConfigBody Config
+
 func main() {
-	token, err := loadConfig()
+	config, err := loadConfig()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	setupBot(token)
+	ConfigBody = config
+	setupBot(config.Token)
 }
-func loadConfig() (string, error) {
+
+func loadConfig() (Config, error) {
 	if _, err := os.Stat("config.json"); err != nil {
 		os.Create("config.json")
 		file, err := os.OpenFile("config.json", os.O_APPEND, os.ModeAppend)
 		if err != nil {
-			return "", err
+			return Config{}, err
 		}
 		defer file.Close()
-		token := Token{
-			Body: "your token goes here",
+		token := Config{
+			Token: "your token goes here",
+			Proxy: struct {
+				User     string `json:"user"`
+				Password string `json:"password"`
+				Ip       string `json:"ip"`
+				Port     string `json:"port"`
+			}{User: "user", Password: "password", Ip: "ip", Port: "port"},
 		}
 		err = json.NewEncoder(file).Encode(token)
 		if err != nil {
-			return "", err
+			return Config{}, err
 		}
-		return "", err
+		return Config{}, err
 	}
 	file, err := os.Open("config.json")
 	if err != nil {
-		return "", err
+		return Config{}, err
 	}
 	defer file.Close()
-	token := Token{}
-	json.NewDecoder(file).Decode(&token)
-	return token.Body, nil
+	config := Config{}
+	json.NewDecoder(file).Decode(&config)
+	return config, nil
 
 }
 func setupBot(token string) {
@@ -101,7 +118,17 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, could not parse the actual id of the video", m.Author.Mention()))
 			return
 		}
-		data, err := tiktok.NewAwemeDetail(parsedId)
+
+		proxy := "http://" + ConfigBody.Proxy.User + ":" + ConfigBody.Proxy.Password + "@" + ConfigBody.Proxy.Ip + ":" + ConfigBody.Proxy.Port
+		proxyURL, err := url.Parse(proxy)
+		log.Println(proxyURL)
+		if err != nil {
+			log.Println(err)
+		}
+		transport := &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+		}
+		data, err := tiktok.NewAwemeDetail(parsedId, transport)
 		if err != nil {
 			log.Println(err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s It looks like I can't get the details about your video, try to resend it one more time!", m.Author.Mention()))

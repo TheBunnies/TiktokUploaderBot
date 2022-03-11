@@ -37,15 +37,22 @@ func Parse(id string) (uint64, error) {
 	return strconv.ParseUint(id, 10, 64)
 }
 
-func NewAwemeDetail(id uint64) (*AwemeDetail, error) {
+func NewAwemeDetail(id uint64, transport http.RoundTripper) (*AwemeDetail, error) {
 	req, err := http.NewRequest("GET", Origin+"/aweme/v1/aweme/detail/", nil)
 	if err != nil {
 		return nil, err
 	}
 	req.URL.RawQuery = "aweme_id=" + strconv.FormatUint(id, 10)
-	res, err := new(http.Transport).RoundTrip(req)
+	client := &http.Client{
+		Transport: transport,
+	}
+	res, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		client.Transport = nil
+		res, err = client.Do(req)
+		if err != nil {
+			return nil, err
+		}
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {

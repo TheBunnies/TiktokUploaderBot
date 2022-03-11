@@ -1,1 +1,1 @@
-{"token":"your token goes here"}
+{"token":"your token goes here", "proxy": { "user": "user", "password": "password", "ip": "ip", "port": "port" }}
