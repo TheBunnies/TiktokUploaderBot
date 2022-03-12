@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/servusdei2018/shards"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,9 +17,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-var rgx = regexp.MustCompile(`http(s|):\/\/.*(tiktok).com[^\s]*`)
-var roleRgx = regexp.MustCompile(`<@&(\d+)>`)
-
 type Config struct {
 	Token string `json:"token"`
 	Proxy struct {
@@ -29,7 +27,14 @@ type Config struct {
 	}
 }
 
-var ConfigBody Config
+var (
+	rgx     = regexp.MustCompile(`http(s|):\/\/.*(tiktok).com[^\s]*`)
+	roleRgx = regexp.MustCompile(`<@&(\d+)>`)
+
+	ConfigBody Config
+
+	Dg *shards.Manager
+)
 
 func main() {
 	config, err := loadConfig()
@@ -74,17 +79,18 @@ func loadConfig() (Config, error) {
 
 }
 func setupBot(token string) {
-	dg, err := discordgo.New("Bot " + token)
+	Dg, err := shards.New("Bot " + token)
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
 		return
 	}
 
-	dg.AddHandler(messageCreate)
+	Dg.AddHandler(messageCreate)
+	Dg.AddHandler(onConnect)
 
-	dg.Identify.Intents = discordgo.IntentsGuildMessages
+	Dg.RegisterIntent(discordgo.IntentsGuildMessages)
 
-	err = dg.Open()
+	err = Dg.Start()
 	if err != nil {
 		fmt.Println("error opening connection,", err)
 		return
@@ -95,8 +101,12 @@ func setupBot(token string) {
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
 
-	dg.Close()
+	Dg.Shutdown()
 }
+func onConnect(s *discordgo.Session, evt *discordgo.Connect) {
+	log.Printf("Shard #%v connected.\n", s.ShardID)
+}
+
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID || m.Author.Bot {
 		return
@@ -121,7 +131,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		proxy := "http://" + ConfigBody.Proxy.User + ":" + ConfigBody.Proxy.Password + "@" + ConfigBody.Proxy.Ip + ":" + ConfigBody.Proxy.Port
 		proxyURL, err := url.Parse(proxy)
-		log.Println(proxyURL)
 		if err != nil {
 			log.Println(err)
 		}
