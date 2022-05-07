@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"log"
 	"net/http"
 	"net/url"
@@ -131,9 +132,13 @@ func DownloadVideo(det *AwemeDetail, downloadBytesLimit int64) (*os.File, error)
 	size, _ := strconv.Atoi(res.Header.Get("Content-Length"))
 	downloadSize := int64(size)
 	if downloadSize > downloadBytesLimit {
-		return nil, errors.New("download file is too large")
+		return nil, errors.New("download file is too large, upgrade your server premium level to be able to upload larger videos")
 	}
-	filename := fmt.Sprintf("%s.%s", det.Aweme_ID, strings.Split(res.Header.Get("Content-Type"), "/")[1])
+	u, err := uuid.NewUUID()
+	if err != nil {
+		return nil, err
+	}
+	filename := fmt.Sprintf("%s.%s", u.String(), strings.Split(res.Header.Get("Content-Type"), "/")[1])
 	file, err := os.Create(filename)
 	if err != nil {
 		return nil, err
