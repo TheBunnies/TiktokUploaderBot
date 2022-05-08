@@ -9,7 +9,7 @@ If it detects any shared Tiktok URL on your discord server, the sent message is 
 3. Run `go run main.go` or build `go build .`
 
 ## Proxying
-This bot supports proxying. Supply them in **config.json** file or leave them empty if not needed.
+This bot supports proxying. Supply credentials in **config.json** file or leave them empty if not needed.
 
 ## FFmpeg
 This bot has a ffmpeg dependency. Be sure to install it if running locally.
