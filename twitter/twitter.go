@@ -20,6 +20,13 @@ type VideoDownloader struct {
 	GuestToken  string
 }
 
+var (
+	rgxBearer  = regexp.MustCompile(`"Bearer.*?"`)
+	rgxNum     = regexp.MustCompile(`[0-9]+`)
+	rgxAddress = regexp.MustCompile(`https.*m3u8`)
+	rgxFormat  = regexp.MustCompile(`.*m3u8`)
+)
+
 func NewTwitterVideoDownloader(url string) *VideoDownloader {
 	self := new(VideoDownloader)
 	self.VideoUrl = url
@@ -34,8 +41,7 @@ func (s *VideoDownloader) GetBearerToken(proxy string) string {
 	}
 
 	c.OnResponse(func(r *colly.Response) {
-		pattern := regexp.MustCompile(`"Bearer.*?"`)
-		s.BearerToken = strings.Trim(pattern.FindString(string(r.Body)), `"`)
+		s.BearerToken = strings.Trim(rgxBearer.FindString(string(r.Body)), `"`)
 	})
 
 	c.Visit("https://abs.twimg.com/web-video-player/TwitterVideoPlayerIframe.cefd459559024bfb.js")
@@ -52,8 +58,7 @@ func (s *VideoDownloader) GetXGuestToken(proxy string) string {
 	})
 
 	c.OnResponse(func(r *colly.Response) {
-		pattern, _ := regexp.Compile(`[0-9]+`)
-		s.GuestToken = pattern.FindString(string(r.Body))
+		s.GuestToken = rgxNum.FindString(string(r.Body))
 	})
 
 	c.Post("https://api.twitter.com/1.1/guest/activate.json", nil)
@@ -73,8 +78,7 @@ func (s *VideoDownloader) GetM3U8Urls(proxy string) string {
 	})
 
 	c.OnResponse(func(r *colly.Response) {
-		pattern, _ := regexp.Compile(`https.*m3u8`)
-		m3u8_urls = strings.ReplaceAll(pattern.FindString(string(r.Body)), "\\", "")
+		m3u8_urls = strings.ReplaceAll(rgxAddress.FindString(string(r.Body)), "\\", "")
 	})
 
 	url := "https://api.twitter.com/1.1/videos/tweet/config/" +
@@ -93,8 +97,7 @@ func (s *VideoDownloader) GetM3U8Url(m3u8_urls string, proxy string) string {
 	c.SetProxy(proxy)
 
 	c.OnResponse(func(r *colly.Response) {
-		pattern, _ := regexp.Compile(`.*m3u8`)
-		m3u8_urls := pattern.FindAllString(string(r.Body), -1)
+		m3u8_urls := rgxFormat.FindAllString(string(r.Body), -1)
 		m3u8_url = "https://video.twimg.com" + m3u8_urls[len(m3u8_urls)-1]
 	})
 
