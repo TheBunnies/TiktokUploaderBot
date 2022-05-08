@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/TheBunnies/TiktokUploaderBot/tiktok"
+	"github.com/TheBunnies/TiktokUploaderBot/twitter"
 	"github.com/servusdei2018/shards"
 	"log"
 	"net/http"
@@ -13,7 +15,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/TheBunnies/TiktokUploaderBot/tiktok"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -28,8 +29,9 @@ type Config struct {
 }
 
 var (
-	rgx     = regexp.MustCompile(`http(s|):\/\/.*(tiktok).com[^\s]*`)
-	roleRgx = regexp.MustCompile(`<@&(\d+)>`)
+	rgxTiktok  = regexp.MustCompile(`http(s|):\/\/.*(tiktok).com[^\s]*`)
+	rgxTwitter = regexp.MustCompile(`http(|s):\/\/twitter\.com\/i\/status\/[0-9]*`)
+	roleRgx    = regexp.MustCompile(`<@&(\d+)>`)
 
 	ConfigBody Config
 
@@ -111,9 +113,50 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID || m.Author.Bot {
 		return
 	}
-	if rgx.MatchString(m.Content) {
-		link := TrimURL(rgx.FindString(m.Content))
-		log.Println("Started processing ", link, "Requested by:", m.Author.Username, ":", m.Author.ID)
+	checkTiktok(s, m)
+	checkTwitter(s, m)
+}
+
+func checkTwitter(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if rgxTwitter.MatchString(m.Content) {
+		link := TrimURL(rgxTwitter.FindString(m.Content))
+		log.Println("Started processing twitter request", link, "Requested by:", m.Author.Username, ":", m.Author.ID)
+		s.ChannelTyping(m.ChannelID)
+
+		data := twitter.NewTwitterVideoDownloader(link)
+		proxy := "http://" + ConfigBody.Proxy.User + ":" + ConfigBody.Proxy.Password + "@" + ConfigBody.Proxy.Ip + ":" + ConfigBody.Proxy.Port
+
+		guild, _ := s.Guild(m.GuildID)
+		limit := getDownloadSizeLimit(guild)
+		file, err := data.Download(proxy, limit)
+		if err != nil {
+			log.Println(err)
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry could not get the details about the video `%s`", err))
+			return
+		}
+		var message string
+		if rgxTwitter.ReplaceAllString(m.Content, "") == "" {
+			message = fmt.Sprintf("From: %s \nOriginal link: <%s>", m.Author.Mention(), link)
+		} else {
+			content := removeRoleMentions(strings.TrimSpace(rgxTwitter.ReplaceAllString(m.Content, "")))
+			message = fmt.Sprintf("From: %s \nOriginal link: <%s> \nWith the following message: %s", m.Author.Mention(), link, content)
+		}
+		_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{File: &discordgo.File{Name: file.Name(), ContentType: "video/mp4", Reader: file}, Content: message, Reference: m.MessageReference})
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, m.Author.Mention()+" I can't process this video, it's cursed.")
+			file.Close()
+			os.Remove(file.Name())
+			return
+		}
+		s.ChannelMessageDelete(m.ChannelID, m.Message.ID)
+		file.Close()
+		os.Remove(file.Name())
+	}
+}
+func checkTiktok(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if rgxTiktok.MatchString(m.Content) {
+		link := TrimURL(rgxTiktok.FindString(m.Content))
+		log.Println("Started processing tiktok request", link, "Requested by:", m.Author.Username, ":", m.Author.ID)
 		s.ChannelTyping(m.ChannelID)
 
 		id, err := tiktok.GetId(link)
@@ -145,17 +188,17 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 		guild, _ := s.Guild(m.GuildID)
 		limit := getDownloadSizeLimit(guild)
-		file, err := tiktok.DownloadVideo(data, limit)
+		file, err := data.DownloadVideo(limit)
 		if err != nil {
 			log.Println(err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s Sorry, cannot process the video `%s`", m.Author.Mention(), err))
 			return
 		}
 		var message string
-		if rgx.ReplaceAllString(m.Content, "") == "" {
+		if rgxTiktok.ReplaceAllString(m.Content, "") == "" {
 			message = fmt.Sprintf("From: %s \nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s`\nDescription: ||%s|| \nOriginal link: <%s>", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), data.Description(), link)
 		} else {
-			content := removeRoleMentions(strings.TrimSpace(rgx.ReplaceAllString(m.Content, "")))
+			content := removeRoleMentions(strings.TrimSpace(rgxTiktok.ReplaceAllString(m.Content, "")))
 			message = fmt.Sprintf("From: %s\nAuthor: **%s** \nDuration: `%s`\nCreation time: `%s`\nDescription: ||%s|| \nOriginal link: <%s> \nwith the following message: %s", m.Author.Mention(), data.Author.Unique_ID, data.Duration(), data.Time(), data.Description(), link, content)
 		}
 		_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{File: &discordgo.File{Name: file.Name(), ContentType: "video/mp4", Reader: file}, Content: message, Reference: m.MessageReference})
@@ -170,6 +213,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		os.Remove(file.Name())
 	}
 }
+
 func getDownloadSizeLimit(guild *discordgo.Guild) int64 {
 	tier := guild.PremiumTier
 	if tier == discordgo.PremiumTier2 {
@@ -186,7 +230,7 @@ func TrimURL(uri string) string {
 		return ""
 	}
 	loc.RawQuery = ""
-	loc.Scheme = "http"
+	loc.Scheme = "https"
 	return loc.String()
 }
 func removeRoleMentions(message string) string {

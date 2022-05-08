@@ -119,7 +119,7 @@ func fileNameWithoutExtension(fileName string) string {
 	return fileName
 }
 
-func DownloadVideo(det *AwemeDetail, downloadBytesLimit int64) (*os.File, error) {
+func (det *AwemeDetail) DownloadVideo(downloadBytesLimit int64) (*os.File, error) {
 	addr, err := det.URL()
 	if err != nil {
 		return nil, err
