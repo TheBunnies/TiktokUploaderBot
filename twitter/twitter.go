@@ -6,12 +6,14 @@ import (
 	"errors"
 	"github.com/gocolly/colly"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type VideoDownloader struct {
@@ -114,7 +116,18 @@ func (s *VideoDownloader) Download(proxy string, downloadBytesLimit int64) (*os.
 
 	sum := md5.Sum([]byte(m3u8_url))
 	filename := hex.EncodeToString(sum[:]) + ".mp4"
-	response, err := http.Get(m3u8_url)
+	t := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   60 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout: 60 * time.Second,
+	}
+	c := &http.Client{
+		Transport: t,
+	}
+
+	response, err := c.Get(m3u8_url)
 	if err != nil {
 		return nil, err
 	}
