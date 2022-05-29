@@ -6,14 +6,13 @@ import (
 	"errors"
 	"github.com/gocolly/colly"
 	"log"
-	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type VideoDownloader struct {
@@ -116,28 +115,34 @@ func (s *VideoDownloader) Download(proxy string, downloadBytesLimit int64) (*os.
 
 	sum := md5.Sum([]byte(m3u8_url))
 	filename := hex.EncodeToString(sum[:]) + ".mp4"
-	t := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   60 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		TLSHandshakeTimeout: 60 * time.Second,
-	}
-	c := &http.Client{
-		Transport: t,
-	}
 
-	response, err := c.Get(m3u8_url)
+	proxyUrl, err := url.Parse(proxy)
 	if err != nil {
 		return nil, err
 	}
+	transport := &http.Transport{
+		Proxy: http.ProxyURL(proxyUrl),
+	}
+	client := &http.Client{
+		Transport: transport,
+	}
+
+	response, err := client.Get(m3u8_url)
+	if err != nil {
+		client.Transport = nil
+		response, err = client.Get(m3u8_url)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	defer response.Body.Close()
 	size, _ := strconv.Atoi(response.Header.Get("Content-Length"))
 	downloadSize := int64(size)
 	if downloadSize > downloadBytesLimit {
 		return nil, errors.New("download file is too large, upgrade your server premium level to be able to upload larger videos")
 	}
-	cmd := exec.Command("ffmpeg", "-y", "-i", m3u8_url, "-c", "copy", filename)
+	cmd := exec.Command("ffmpeg", "-y", "-http_proxy", proxy, "-i", m3u8_url, "-c", "copy", filename)
 	cmd.Run()
 	openedFile, err := os.Open(filename)
 	if err != nil {
